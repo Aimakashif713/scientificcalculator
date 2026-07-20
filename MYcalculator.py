@@ -15,7 +15,7 @@ import streamlit as st
 # ----------------------------------------------------------------------
 # Page setup
 # ----------------------------------------------------------------------
-st.set_page_config(page_title="Scientific Calculator", page_icon="🧮", layout="centered")
+st.set_page_config(page_title="Aima's calculator", page_icon="S🧮", layout="centered")
 
 st.markdown(
     """
