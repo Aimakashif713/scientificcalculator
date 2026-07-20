@@ -15,7 +15,11 @@ import streamlit as st
 # ----------------------------------------------------------------------
 # Page setup
 # ----------------------------------------------------------------------
-st.set_page_config(page_title="Aima's calculator", page_icon="S🧮", layout="centered")
+st.set_page_config(
+    page_title="Aima's Scientific Calculator",
+    page_icon="🧮",
+    layout="centered",
+)
 
 st.markdown(
     """
@@ -37,16 +41,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🧮 Scientific Calculator")
-st.caption("Type with your keyboard and press **Enter**, or click the buttons with your mouse.")
+st.title("Aima's Scientific Calculator")
 
 # ----------------------------------------------------------------------
 # Session state
 # ----------------------------------------------------------------------
 if "expression" not in st.session_state:
     st.session_state.expression = ""
-if "result" not in st.session_state:
-    st.session_state.result = ""
 if "angle_mode" not in st.session_state:
     st.session_state.angle_mode = "Radians"
 if "history" not in st.session_state:
@@ -73,23 +74,32 @@ def build_safe_namespace(angle_mode: str) -> dict:
         asin_, acos_, atan_ = math.asin, math.acos, math.atan
 
     safe_dict = {
-        # trig
-        "sin": sin_, "cos": cos_, "tan": tan_,
-        "asin": asin_, "acos": acos_, "atan": atan_,
-        # hyperbolic
-        "sinh": math.sinh, "cosh": math.cosh, "tanh": math.tanh,
-        # logs / exponent
-        "log": math.log10, "ln": math.log, "exp": math.exp,
-        "sqrt": math.sqrt, "cbrt": lambda x: math.copysign(abs(x) ** (1 / 3), x),
+        "sin": sin_,
+        "cos": cos_,
+        "tan": tan_,
+        "asin": asin_,
+        "acos": acos_,
+        "atan": atan_,
+        "sinh": math.sinh,
+        "cosh": math.cosh,
+        "tanh": math.tanh,
+        "log": math.log10,
+        "ln": math.log,
+        "exp": math.exp,
+        "sqrt": math.sqrt,
+        "cbrt": lambda x: math.copysign(abs(x) ** (1 / 3), x),
         "pow": math.pow,
-        # misc
-        "abs": abs, "fabs": math.fabs, "factorial": math.factorial,
-        "floor": math.floor, "ceil": math.ceil, "round": round,
-        # constants
-        "pi": math.pi, "e": math.e, "tau": math.tau,
+        "abs": abs,
+        "fabs": math.fabs,
+        "factorial": math.factorial,
+        "floor": math.floor,
+        "ceil": math.ceil,
+        "round": round,
+        "pi": math.pi,
+        "e": math.e,
+        "tau": math.tau,
+        "__builtins__": {},
     }
-    # block builtins entirely
-    safe_dict["__builtins__"] = {}
     return safe_dict
 
 
@@ -98,6 +108,7 @@ def preprocess(expr: str) -> str:
     expr = expr.replace("×", "*").replace("÷", "/").replace("^", "**")
     expr = expr.replace("π", "pi").replace("√", "sqrt")
     expr = expr.replace("%", "/100")
+    expr = expr.replace("Ans", "ans")
     return expr
 
 
@@ -108,7 +119,7 @@ def evaluate_expression(expr: str, angle_mode: str):
     try:
         clean_expr = preprocess(expr)
         namespace = build_safe_namespace(angle_mode)
-        value = eval(clean_expr, {"__builtins__": {}}, namespace)  # noqa: S307 (restricted namespace)
+        value = eval(clean_expr, {"__builtins__": {}}, namespace)  # noqa: S307
         return value, None
     except ZeroDivisionError:
         return None, "Error: Division by zero"
@@ -123,69 +134,59 @@ def calculate():
     """Triggered by pressing Enter in the text box OR clicking '='."""
     expr = st.session_state.expression
     value, error = evaluate_expression(expr, st.session_state.angle_mode)
+
     if error:
-        st.session_state.result = error
-    elif value is not None:
-        st.session_state.result = str(value)
+        st.session_state.expression = error
+        return
+
+    if value is not None:
+        st.session_state.expression = str(value)
         st.session_state.history.insert(0, f"{expr} = {value}")
         st.session_state.history = st.session_state.history[:8]
 
 
 def append_token(token: str):
+    if st.session_state.expression.startswith("Error:"):
+        st.session_state.expression = ""
     st.session_state.expression += token
 
 
 def clear_all():
     st.session_state.expression = ""
-    st.session_state.result = ""
 
 
 def backspace():
-    st.session_state.expression = st.session_state.expression[:-1]
+    if st.session_state.expression.startswith("Error:"):
+        st.session_state.expression = ""
+    else:
+        st.session_state.expression = st.session_state.expression[:-1]
 
 
 def use_last_result():
-    if st.session_state.result and not st.session_state.result.startswith("Error"):
-        st.session_state.expression += st.session_state.result
+    # In this version, Ans is just the current expression if it's a number/result.
+    if st.session_state.expression and not st.session_state.expression.startswith("Error:"):
+        st.session_state.expression += ""
 
 
 # ----------------------------------------------------------------------
-# Display: keyboard-enabled input box (press Enter to calculate)
+# Main display
 # ----------------------------------------------------------------------
-st.text_input(
-    "Expression (type here and press Enter)",
-    key="expression",
-    on_change=calculate,
-    placeholder="e.g. sin(30) + sqrt(16) * 2",
-    label_visibility="collapsed",
-)
+display = st.container(border=True)
 
-if st.session_state.result:
-    st.markdown(
-        f"<div style='text-align:right; font-size:28px; font-weight:bold; "
-        f"padding:8px; background:#f0f2f6; border-radius:8px;'>= {st.session_state.result}</div>",
-        unsafe_allow_html=True,
+with display:
+
+    st.text_input(
+        "Expression (type here and press Enter)",
+        key="expression",
+        on_change=calculate,
+        label_visibility="collapsed",
     )
-
-st.write("")
-
-# ----------------------------------------------------------------------
-# Options row: angle mode + explicit Enter/Calculate button
-# ----------------------------------------------------------------------
-opt1, opt2, opt3 = st.columns([1.3, 1, 1])
-with opt1:
-    st.selectbox("Angle mode", ["Radians", "Degrees"], key="angle_mode")
-with opt2:
-    st.button("↵ Enter / Calculate", on_click=calculate, use_container_width=True, type="primary")
-with opt3:
-    st.button("Use result (Ans)", on_click=use_last_result, use_container_width=True)
 
 st.write("")
 
 # ----------------------------------------------------------------------
 # Mouse-clickable button grid
 # ----------------------------------------------------------------------
-# Each row: list of (label, token_to_append) -- token=None means special action
 rows = [
     [("sin(", "sin("), ("cos(", "cos("), ("tan(", "tan("), ("π", "π"), ("e", "e")],
     [("asin(", "asin("), ("acos(", "acos("), ("atan(", "atan("), ("log(", "log("), ("ln(", "ln(")],
@@ -217,21 +218,4 @@ for row in rows:
                     use_container_width=True,
                 )
 
-st.write("")
 
-# ----------------------------------------------------------------------
-# History
-# ----------------------------------------------------------------------
-with st.expander("🕘 History", expanded=False):
-    if st.session_state.history:
-        for item in st.session_state.history:
-            st.write(item)
-        st.button("Clear history", on_click=lambda: st.session_state.history.clear())
-    else:
-        st.write("No calculations yet.")
-
-st.divider()
-st.caption(
-    "Tips: Use `^` for power, `√(` for square root, `!` for factorial, `π` and `e` for constants. "
-    "Type directly in the box and hit **Enter**, or use the buttons below."
-)
